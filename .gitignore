@@ -1,0 +1,9 @@
+node_modules
+dist/
+.idea/
+
+# Local working notes, never part of the repository or the published package.
+TODO.md
+
+# macOS Finder metadata
+.DS_Store

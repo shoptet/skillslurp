@@ -1,0 +1,26 @@
+{
+	"version": 1,
+	"extends": ["recommended"],
+	"surfaces": [
+		{
+			"root": ".agents/skills",
+			"kind": "skills",
+			"dialects": ["generic"],
+			"spokes": [".claude/skills", ".cursor/skills"]
+		},
+		{
+			"root": ".agents/rules",
+			"kind": "rules",
+			"dialects": ["cursor"],
+			"include": ["**/*.md"],
+			"spokes": [".cursor/rules"]
+		}
+	],
+	"rules": {
+		"file/defers-to": {
+			"options": {
+				"pairs": [{ "files": "**/CLAUDE.md", "canonical": "AGENTS.md" }]
+			}
+		}
+	}
+}

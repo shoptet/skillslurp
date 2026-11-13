@@ -1,0 +1,13 @@
+{
+	"version": 1,
+	"extends": ["recommended"],
+	"surfaces": [
+		{
+			"root": ".agents/commands",
+			"kind": "skills",
+			"dialects": ["claude-code"],
+			"include": ["**/*.md"],
+			"spokes": [".claude/commands", ".cursor/commands"]
+		}
+	]
+}

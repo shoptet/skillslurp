@@ -1,0 +1,20 @@
+{
+	"version": 1,
+	"extends": ["recommended"],
+	"surfaces": [
+		{
+			"root": ".claude/skills",
+			"dialects": ["claude-code"],
+			"rules": {
+				"index/complete": {
+					"severity": "error",
+					"options": { "file": ".claude/skills/SKILLS.md" }
+				},
+				"index/no-missing-targets": {
+					"severity": "error",
+					"options": { "file": ".claude/skills/SKILLS.md" }
+				}
+			}
+		}
+	]
+}

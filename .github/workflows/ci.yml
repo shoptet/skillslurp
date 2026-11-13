@@ -1,0 +1,127 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.14
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+      # Printed AND enforced, because the test harness quietly depends on it. `gitInitAndCommit`
+      # (src/testing/rule-tester.ts) points GIT_CONFIG_GLOBAL/GIT_CONFIG_SYSTEM at /dev/null so
+      # that no temp repository it creates ever consults the operator's ~/.gitconfig or a
+      # machine-wide /etc/gitconfig — a global core.hooksPath would otherwise run an unasked-for
+      # hook on every fixture repo. Both variables landed in git 2.32 (2021-06); on anything
+      # older they are simply ignored, the isolation is silently gone, and the suite still
+      # reports green. Nothing pinned or printed the version before, so the floor was a claim in
+      # a comment and nothing else. This is the measurement.
+      - name: Check the git version the test harness assumes
+        run: |
+          set -euo pipefail
+          git --version
+          required=2.32.0
+          found=$(git --version | awk '{print $3}')
+          if [ "$(printf '%s\n%s\n' "$required" "$found" | sort -V | head -n1)" != "$required" ]; then
+            echo "git $found is older than $required; GIT_CONFIG_GLOBAL/GIT_CONFIG_SYSTEM are ignored there, so the test harness's config isolation would be silently lost" >&2
+            exit 1
+          fi
+      - run: bun install --frozen-lockfile
+      - run: bun run lint
+      - run: bun run typecheck
+      - run: bun test
+      - run: bun run build
+      - run: |
+          node dist/cli.js --version
+          node dist/cli.js test/fixtures/clean-repo
+      # The Node lane's only reach into the capability layer and into the `shape` rules. Every
+      # other fixture this workflow runs enables no `project`, `scan` or `shape` rule at all, so
+      # until this step `bun test` was the sole runtime exercising `ctx.git` and `ctx.grep` —
+      # which is exactly the code where Bun/Node divergence was actually found
+      # (`child_process` argument and PATH handling, `realpath` permission semantics). `hub-repo`
+      # adds the `shape` rules `hub/symlinks` and `file/defers-to`, which read git's index modes
+      # (`ctx.git.trackedModes()`) and `lstat`/`readlink` the working tree; its committed symlink
+      # is a real one, so the checkout has to preserve it. All three fixtures are linted IN PLACE,
+      # from this checkout:
+      # `git -C <fixture> ls-files` inside a nested directory lists that directory's own
+      # committed files relative to it, the same mechanism every other fixture here has relied on
+      # since `links/resolve` was put on the tracked-file index.
+      #
+      # The caveat that mechanism carries, stated because it is the one that bites locally rather
+      # than here: in place depends on the fixture being COMMITTED. A working tree with an
+      # unstaged fixture file disagrees with CI — the file is not tracked, so a link to it does
+      # not resolve and a glob whose only match is that file is dead. That is precisely why the
+      # bun test does NOT run in place: `src/cli.capability.test.ts` copies each fixture to a
+      # temp directory and gives it its own one-commit repository first.
+      - name: Lint the capability-layer fixtures on Node, in place
+        run: |
+          set -euo pipefail
+          assert_reports() {
+            fixture="$1"
+            shift
+            # The assignment is the `if` condition, so `set -e` does not fire on the exit-1 this
+            # step is here to require.
+            if out=$(node dist/cli.js --reporter json "$fixture"); then
+              echo "expected $fixture to report violations and exit 1" >&2
+              exit 1
+            fi
+            for rule in "$@"; do
+              # Exit 1 alone would also be satisfied by one rule firing, and the rules that make
+              # this step worth running are the ones that shell out or scan raw text.
+              printf '%s' "$out" | grep -q "\"ruleId\":\"$rule\"" || {
+                echo "expected $fixture to report $rule; it did not" >&2
+                exit 1
+              }
+            done
+          }
+          assert_reports test/fixtures/project-scan-repo \
+            index/complete index/no-missing-targets activation/no-unmatched-globs \
+            refs/no-dangling-paths
+          assert_reports test/fixtures/orphan-repo refs/no-unreachable-files
+          assert_reports test/fixtures/hub-repo hub/symlinks file/defers-to
+      - run: bun dist/cli.js --version
+      # Everything above runs the CLI from inside the checkout, where the repo's node_modules
+      # sits one directory up — a runtime dependency that failed to bundle would resolve there
+      # and never be noticed. This runs the artifact a user actually installs, unpacked outside
+      # the workspace, so nothing is left to fall back on. `npm pack` runs `prepack` and then
+      # `prepare`, and both build, so this REBUILDS `dist/` rather than packing what the build step
+      # above produced (re-measured, npm 11.19.0, 2026-09-14; `prepare` exists for installs from a
+      # git URL, which `prepack` never covered): the tarball can never carry a stale bundle. The
+      # consequence worth knowing: `npm publish` and `npm install <git-url>` both need bun on the
+      # machine.
+      - name: Smoke-test the packed tarball
+        run: |
+          set -euo pipefail
+          npm pack --silent --pack-destination "$RUNNER_TEMP"
+          mkdir -p "$RUNNER_TEMP/pkg"
+          tar -xzf "$RUNNER_TEMP"/skillslurp-*.tgz -C "$RUNNER_TEMP/pkg" --strip-components=1
+          # the published tree is dist + metadata only; source or fixtures leaking in is a bug
+          test ! -e "$RUNNER_TEMP/pkg/src"
+          test ! -e "$RUNNER_TEMP/pkg/test"
+          test -f "$RUNNER_TEMP/pkg/LICENSE"
+          test ! -e "$RUNNER_TEMP/pkg/LICENSE-MIT"
+          test ! -e "$RUNNER_TEMP/pkg/LICENSE-APACHE"
+          test -s "$RUNNER_TEMP/pkg/dist/THIRD_PARTY_NOTICES.txt"
+          grep -q '^zod ' "$RUNNER_TEMP/pkg/dist/THIRD_PARTY_NOTICES.txt"
+          cli="$RUNNER_TEMP/pkg/dist/cli.js"
+          node "$cli" --version
+          # a clean repo exits 0, a dirty one exits 1 — proves the bundled engine and rules ran,
+          # not merely that the binary starts
+          node "$cli" "$GITHUB_WORKSPACE/test/fixtures/clean-repo"
+          if node "$cli" "$GITHUB_WORKSPACE/test/fixtures/skills-repo"; then
+            echo "expected the skills-repo fixture to report violations and exit 1" >&2
+            exit 1
+          fi

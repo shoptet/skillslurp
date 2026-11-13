@@ -1,0 +1,7 @@
+{
+	"version": 1,
+	"extends": ["recommended"],
+	"surfaces": [
+		{ "root": ".cursor/skills", "dialects": ["claude-code", "cursor"] }
+	]
+}

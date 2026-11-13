@@ -1,0 +1,11 @@
+{
+	"version": 1,
+	"extends": ["recommended"],
+	"surfaces": [
+		{
+			"root": ".claude/rules",
+			"kind": "rules",
+			"dialects": ["claude-code", "cursor"]
+		}
+	]
+}

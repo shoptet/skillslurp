@@ -1,0 +1,11 @@
+{
+	"version": 1,
+	"extends": ["recommended"],
+	"surfaces": [
+		{
+			"root": ".claude/skills",
+			"dialects": ["claude-code"],
+			"rules": { "file/max-lines": { "options": { "max": 12 } } }
+		}
+	]
+}

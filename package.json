@@ -1,0 +1,47 @@
+{
+	"name": "skillslurp",
+	"version": "0.1.1",
+	"description": "Repo-wide consistency linter for AI coding-agent configuration.",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/shoptet/skillslurp.git"
+	},
+	"type": "module",
+	"license": "MIT",
+	"bin": {
+		"skillslurp": "dist/cli.js"
+	},
+	"files": [
+		"dist",
+		"docs/configuration.md",
+		"LICENSE"
+	],
+	"engines": {
+		"node": ">=22"
+	},
+	"scripts": {
+		"build": "bun scripts/build.ts",
+		"prepare": "bun run build",
+		"prepack": "bun run build",
+		"test": "bun test",
+		"lint": "biome check --error-on-warnings .",
+		"format": "biome check --write .",
+		"typecheck": "tsc --noEmit"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.5.10",
+		"@types/bun": "^1.4.0",
+		"@types/mdast": "^4.0.4",
+		"@types/picomatch": "^4.0.3",
+		"citty": "^0.2.2",
+		"picocolors": "^1.1.1",
+		"picomatch": "^4.0.7",
+		"remark-frontmatter": "^5.0.0",
+		"remark-parse": "^11.0.0",
+		"tinyglobby": "^0.2.17",
+		"typescript": "^7.0.2",
+		"unified": "^11.0.5",
+		"yaml": "^2.9.0",
+		"zod": "^4.6.7"
+	}
+}

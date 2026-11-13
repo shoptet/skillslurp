@@ -1,0 +1,6 @@
+{
+	"version": 1,
+	"extends": ["recommended"],
+	"surfaces": [{ "root": ".claude/skills" }],
+	"rules": { "skill/frontmatter-schema": "error" }
+}

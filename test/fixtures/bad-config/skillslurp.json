@@ -1,0 +1,5 @@
+{
+	"version": 1,
+	"rulez": { "foo": "bar" },
+	"surfaces": [{ "root": ".claude/skills" }]
+}
